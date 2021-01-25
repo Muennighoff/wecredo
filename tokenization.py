@@ -52,7 +52,7 @@ def random_word(tokens, ref_ids, tokenizer):
                 output_label.append(tokenizer.vocab["[UNK]"])
         else:
             # no masking token (will be ignored by loss function later)
-            output_label.append(-1)
+            output_label.append(-100)
 
     return tokens, output_label
 
@@ -266,8 +266,7 @@ def _whole_word_mask(input_tokens, max_predictions=512, mlm_probability=0.15):
 
 
 
-class WWMTokenizer:
-
+class WWMTokenizer():
     def __init__(self, seq_len=512):
         """
         Constructs Huggingface CN tokenizer & other
@@ -290,15 +289,21 @@ class WWMTokenizer:
         """
 
         inputs = example['text']
+    
 
         ref_ids = prepare_ref([inputs], self.tokenizer_ltp, self.tokenizer_cn)
 
         tokens = self.tokenizer_cn.tokenize(inputs)
+
+        if len(tokens) > self.max_seq_length - 2:
+            tokens = tokens[:(self.max_seq_length - 2)]
+            ref_ids = ref_ids[:(self.max_seq_length - 2)]
+
         ref_ids = cn_whole_word_mask(tokens, ref_ids[0])
         tokens, labels = random_word(tokens, ref_ids, self.tokenizer_cn)
 
         tokens = ['[CLS]'] + tokens + ['[SEP]']
-        lm_label_ids = ([-1] + labels + [-1])
+        lm_label_ids = ([-100] + labels + [-100])
 
         input_ids = self.tokenizer_cn.convert_tokens_to_ids(tokens)
 
@@ -309,7 +314,7 @@ class WWMTokenizer:
             input_ids.append(0)
             attention_mask.append(0)
             token_type_ids.append(0)
-            lm_label_ids.append(-1)
+            lm_label_ids.append(-100)
 
         assert len(input_ids) == self.max_seq_length
         assert len(attention_mask) == self.max_seq_length
@@ -321,3 +326,19 @@ class WWMTokenizer:
                 'token_type_ids': tf.constant(attention_mask), 'lm_label_ids': tf.constant(lm_label_ids)}
 
         return outputs
+
+    def to_tf_dataset(self, dataset): 
+        """
+        Turns dataset into a TF compatible dataset
+        """
+        columns = ['input_ids', 'attention_mask', 'token_type_ids', 'lm_label_ids']
+        dataset.set_format(type='tensorflow', columns=columns)
+
+        return_types = {'input_ids':tf.int32, 'attention_mask':tf.int32, 
+                      'token_type_ids':tf.int32, 'lm_label_ids':tf.int32}
+
+        return_shapes = {'input_ids': tf.TensorShape([None]), 'attention_mask': tf.TensorShape([None]), 
+                        'token_type_ids': tf.TensorShape([None]), 'lm_label_ids':tf.TensorShape([None])}
+
+        ds = tf.data.Dataset.from_generator(lambda : dataset, return_types, return_shapes)
+        return ds
