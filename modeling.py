@@ -34,6 +34,10 @@ from transformers.utils import logging
 from transformers import RobertaConfig
 
 
+# NEW
+from performer_attention import TFPerformerAttention
+
+
 logger = logging.get_logger(__name__)
 
 _CONFIG_FOR_DOC = "RobertaConfig"
@@ -390,16 +394,21 @@ class TFRobertaAttention(tf.keras.layers.Layer):
     def __init__(self, config, **kwargs):
         super().__init__(**kwargs)
 
-        self.self_attention = TFRobertaSelfAttention(config, name="self")
+        #self.self_attention = TFRobertaSelfAttention(config, name="self")
+        self.self_attention = TFPerformerAttention(config, name="self")
+
         self.dense_output = TFRobertaSelfOutput(config, name="output")
 
     def prune_heads(self, heads):
         raise NotImplementedError
 
     def call(self, input_tensor, attention_mask, head_mask, output_attentions, training=False):
+        
         self_outputs = self.self_attention(
             input_tensor, attention_mask, head_mask, output_attentions, training=training
         )
+
+
         attention_output = self.dense_output(self_outputs[0], input_tensor, training=training)
         outputs = (attention_output,) + self_outputs[1:]  # add attentions if we output them
 
