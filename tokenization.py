@@ -272,14 +272,17 @@ def _whole_word_mask(input_tokens, max_predictions=512, mlm_probability=0.15):
 
 
 class WWMTokenizer():
-    def __init__(self, seq_len=512):
+    def __init__(self, col="text", seq_len=512):
         """
         Constructs Huggingface CN tokenizer & other
+
+            col: What column to tokenize if pretraining
         """
 
         self.tokenizer_cn = AutoTokenizer.from_pretrained("bert-base-chinese")
         self.tokenizer_ltp = LTP("small")
         self.max_seq_length = seq_len
+        self.col = col
 
     def tokenize_pretraining(self, example):
         """
@@ -293,7 +296,7 @@ class WWMTokenizer():
 
         """
 
-        inputs = example['text']
+        inputs = example[self.col]
     
 
         ref_ids = prepare_ref([inputs], self.tokenizer_ltp, self.tokenizer_cn)
