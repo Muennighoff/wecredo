@@ -16,6 +16,7 @@ from typing import Callable, Sequence, Optional, Union
 from dataclasses import dataclass
 from enum import Enum
 
+from transformers.modeling_tf_utils import shape_list
 
 PerformerKernel = Enum('PerformerKernel', ['cosh', 'exp', 'elu', 'relu'])
 OrthogonalFeatureAlgorithm = Enum('OrthogonalFeatureAlgorithm', ['auto', 'kacs', 'qr'])
@@ -229,7 +230,8 @@ class TFPerformerAttention(tf.keras.layers.Layer):
 
         def shape(x):
             """ separate heads """
-            new_shape = tf.concat((x.shape[:-1], tf.constant([self.num_heads, dim_per_head])), axis=0)
+            # > Use shape_list instead of .shape
+            new_shape = tf.concat((shape_list(x)[:-1], tf.constant([self.num_heads, dim_per_head])), axis=0)
             return tf.transpose(tf.reshape(x, new_shape), perm=[0, 2, 1, 3])
 
         if self.use_linear_layers:
@@ -310,7 +312,7 @@ class TFPerformerAttention(tf.keras.layers.Layer):
         if mask is not None:
             # If extended attention mask we need to reshape it to (bs, seq_len)
             # Note: k_prime actual shape is (bs, ?, seq_length, num_features)
-            mask = tf.reshape(mask, shape=(k_prime.shape[0], k_prime.shape[2]))
+            mask = tf.reshape(mask, shape=(shape_list(k_prime)[0], shape_list(k_prime)[2]))
 
             k_prime *= tf.expand_dims(tf.expand_dims(mask, 1), -1)
 
@@ -363,8 +365,8 @@ class TFPerformerAttention(tf.keras.layers.Layer):
             context = context * head_mask
 
         x = tf.transpose(context, perm=[0, 2, 1, 3])  # [...seq_len, num_heads, dim_per_head]
-        new_last_dim = x.shape[-2] * x.shape[-1]
-        context = tf.reshape(x, list(x.shape[:-2]) + [new_last_dim])  # (bs, q_length, dim)
+        new_last_dim = shape_list(x)[-2] * shape_list(x)[-1]
+        context = tf.reshape(x, shape_list(x)[:-2] + [new_last_dim])  # (bs, q_length, dim)
 
         if self.use_linear_layers and len(self.linear_layer_names) > 3:
             context = getattr(self, self.linear_layer_names[3])(context)  # (bs, q_length, dim)
