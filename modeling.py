@@ -398,6 +398,9 @@ class TFRobertaAttention(tf.keras.layers.Layer):
         
         # Either merge Performer Config w/ normal config or enable choosing Performer
         if True:
+
+            self.num_attention_heads = config.num_attention_heads
+            
             performer_config = PerformerAttentionConfig(
                                 num_heads=config.num_attention_heads,
                                 d_model=config.hidden_size,
@@ -422,6 +425,11 @@ class TFRobertaAttention(tf.keras.layers.Layer):
         self_outputs = self.self_attention(
             input_tensor, input_tensor, input_tensor, attention_mask, head_mask, output_attentions
         )
+
+        # Reshape to (bs, q_length, num_h, rest)
+        self_outputs = list(self_outputs)
+        self_outputs[0] = tf.reshape(self_outputs[0], list(self_outputs[0].shape[:2]) + [self.num_attention_heads] + [-1])
+        self_outputs = tuple(self_outputs)
 
 
         attention_output = self.dense_output(self_outputs[0], input_tensor, training=training)
