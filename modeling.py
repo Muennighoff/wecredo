@@ -35,7 +35,7 @@ from transformers import RobertaConfig
 
 
 # NEW
-from .performer_attention import TFPerformerAttention
+from .performer_attention import TFPerformerAttention, PerformerAttentionConfig
 
 
 logger = logging.get_logger(__name__)
@@ -395,7 +395,18 @@ class TFRobertaAttention(tf.keras.layers.Layer):
         super().__init__(**kwargs)
 
         #self.self_attention = TFRobertaSelfAttention(config, name="self")
-        self.self_attention = TFPerformerAttention(config, name="self")
+        
+        # Either merge Performer Config w/ normal config or enable choosing Performer
+        if True:
+            performer_config = PerformerAttentionConfig(
+                                num_heads=config.num_attention_heads,
+                                d_model=config.num_hidden_layers,
+                                kernel_type='exp',
+                                num_random_features=30000,
+                                use_linear_layers=False
+                                )
+
+            self.self_attention = TFPerformerAttention(performer_config, name="self")
 
         self.dense_output = TFRobertaSelfOutput(config, name="output")
 
