@@ -35,7 +35,7 @@ from transformers import RobertaConfig
 
 
 # NEW
-from performer_attention import TFPerformerAttention
+from .performer_attention import TFPerformerAttention
 
 
 logger = logging.get_logger(__name__)
@@ -403,7 +403,7 @@ class TFRobertaAttention(tf.keras.layers.Layer):
         raise NotImplementedError
 
     def call(self, input_tensor, attention_mask, head_mask, output_attentions, training=False):
-        
+
         self_outputs = self.self_attention(
             input_tensor, attention_mask, head_mask, output_attentions, training=training
         )
