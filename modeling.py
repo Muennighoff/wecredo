@@ -400,7 +400,7 @@ class TFRobertaAttention(tf.keras.layers.Layer):
         if True:
             performer_config = PerformerAttentionConfig(
                                 num_heads=config.num_attention_heads,
-                                d_model=config.num_hidden_layers,
+                                d_model=config.hidden_size,
                                 kernel_type='exp',
                                 num_random_features=30000,
                                 use_linear_layers=False
