@@ -6,6 +6,11 @@
 ### Could take in as argument prepend text for translate etc tasks; returns decoder labels, decoder inputs, encoder inputs
 
 
+# References:
+# https://github.com/brightmart/roberta_zh/blob/13f7849f0cb0e11573e032acddb35b83b096224e/create_pretraining_data.py
+# https://github.com/huggingface/transformers/blob/9152f16023b59d262b51573714b40325c8e49370/examples/legacy/run_chinese_ref.py#L78
+
+
 # 1) Generate ref ids based on LTP tokenizer > prepare_ref
 # 2) Generate mask for whole words
 # 3) Implement the masking
