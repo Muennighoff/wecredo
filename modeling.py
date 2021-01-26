@@ -415,8 +415,12 @@ class TFRobertaAttention(tf.keras.layers.Layer):
 
     def call(self, input_tensor, attention_mask, head_mask, output_attentions, training=False):
 
+        #self_outputs = self.self_attention(
+        #    input_tensor, attention_mask, head_mask, output_attentions, training=training
+        #)
+
         self_outputs = self.self_attention(
-            input_tensor, attention_mask, head_mask, output_attentions, training=training
+            input_tensor, input_tensor, input_tensor, attention_mask, head_mask, output_attentions
         )
 
 
