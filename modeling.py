@@ -397,7 +397,8 @@ class TFRobertaAttention(tf.keras.layers.Layer):
         #self.self_attention = TFRobertaSelfAttention(config, name="self")
         
         # Either merge Performer Config w/ normal config or enable choosing Performer
-        if True:
+        # Currently manually add performer == True to config
+        if config.performer == True:
 
             self.num_attention_heads = config.num_attention_heads
 
