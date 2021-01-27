@@ -429,11 +429,6 @@ class TFRobertaAttention(tf.keras.layers.Layer):
             self_outputs = self.self_attention(
                 input_tensor, input_tensor, input_tensor, attention_mask, head_mask, output_attentions
             )
-
-            # Reshape to (bs, q_length, num_h, rest)
-            self_outputs = list(self_outputs)
-            self_outputs[0] = tf.reshape(self_outputs[0], shape_list(self_outputs[0])[:2] + [self.num_attention_heads] + [-1])
-            self_outputs = tuple(self_outputs)
         
         else:
             self_outputs = self.self_attention(

@@ -364,9 +364,12 @@ class TFPerformerAttention(tf.keras.layers.Layer):
         if head_mask is not None:
             context = context * head_mask
 
-        x = tf.transpose(context, perm=[0, 2, 1, 3])  # [...seq_len, num_heads, dim_per_head]
-        new_last_dim = shape_list(x)[-2] * shape_list(x)[-1]
-        context = tf.reshape(x, shape_list(x)[:-2] + [new_last_dim])  # (bs, q_length, dim)
+        context = tf.transpose(context, perm=[0, 2, 1, 3])  # [...seq_len, num_heads, dim_per_head]
+
+        # Skip the reshaping as we expect [...seq_len, num_heads, dim_per_head]-like shape
+        # Applying the linear layer is the same w/ / w/o the reshape
+        #new_last_dim = shape_list(context)[-2] * shape_list(context)[-1]
+        #context = tf.reshape(context, shape_list(context)[:-2] + [new_last_dim])  # (bs, q_length, dim)
 
         if self.use_linear_layers and len(self.linear_layer_names) > 3:
             context = getattr(self, self.linear_layer_names[3])(context)  # (bs, q_length, dim)
