@@ -327,7 +327,7 @@ class WWMTokenizer():
 
 
         outputs = {'input_ids': tf.constant(input_ids), 'attention_mask': tf.constant(attention_mask), 
-                'token_type_ids': tf.constant(attention_mask), 'lm_label_ids': tf.constant(lm_label_ids)}
+                'token_type_ids': tf.constant(token_type_ids), 'lm_label_ids': tf.constant(lm_label_ids)}
 
         return outputs
 
