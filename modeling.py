@@ -406,6 +406,7 @@ class TFRobertaAttention(tf.keras.layers.Layer):
             performer_config = PerformerAttentionConfig(
                                 num_heads=config.num_attention_heads,
                                 d_model=config.hidden_size,
+                                kernel_type="relu"
                                 )
 
             self.self_attention = TFPerformerAttention(performer_config, name="self")
