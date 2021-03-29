@@ -19,7 +19,46 @@ from ltp import LTP
 import tensorflow as tf
 
 
-def random_word(tokens, ref_ids, tokenizer):
+def random_word(tokens, tokenizer, word_mask_rate=0.15):
+    """
+    Masking some random tokens for Language Model task with probabilities as in the original BERT paper.
+    :param tokens: list of str, tokenized sentence.
+    :param tokenizer: Tokenizer, object used for tokenization (we need it's vocab here)
+    :return: (list of str, list of int), masked tokens and related labels for LM prediction
+    """
+    output_label = []
+
+    for i, token in enumerate(tokens):
+
+        prob = random.random()
+
+        if prob < word_mask_rate:
+            prob /= word_mask_rate
+            
+            # 80% randomly change token to mask token
+            if prob < 0.8:
+                tokens[i] = "[MASK]"
+
+            # 10% randomly change token to random token
+            elif prob < 0.9:
+                tokens[i] = random.choice(list(tokenizer.vocab.items()))[0]
+
+            # -> rest 10% randomly keep current token
+
+            # append current token to output (we will predict these later)
+            try:
+                output_label.append(tokenizer.vocab[token])
+            except KeyError:
+                # For unknown words (should not occur with BPE vocab)
+                output_label.append(tokenizer.vocab["[UNK]"])
+        else:
+            # no masking token (will be ignored by loss function later)
+            output_label.append(-100)
+
+
+    return tokens, output_label
+
+def random_word_wwm(tokens, ref_ids, tokenizer):
     """
     Masking some random tokens for Language Model task with probabilities as in the original BERT paper.
     :param tokens: list of str, tokenized sentence.
@@ -148,7 +187,6 @@ def prepare_ref(lines, ltp_tokenizer, bert_tokenizer):
       lines: List[str] - e.g. [text1, text2]
       ltp_tokenizer
       bert_tokenizer
-
     Returns:
       ref_ids: List[List[int], ...]
     
@@ -191,17 +229,14 @@ def prepare_ref(lines, ltp_tokenizer, bert_tokenizer):
     return ref_ids
 
 
-def cn_whole_word_mask(input_tokens, ref_ids, max_predictions=512, mlm_probability=0.15):
+def cn_whole_word_mask(input_tokens, ref_ids):
     """
     Masks whole words in CN based on the reference ids & the standard _whole_word_mask for BERT for one individual example.
-
     Args:
       input_tokens: List[str]
       ref_tokens: List[int]
-
     Returns:
       input_tokens: List[int]
-
     TODO:
       We could save the LTP dependency by copying the function from: https://github.com/HIT-SCIR/ltp/blob/c47b3f455c07c5dcc186f2b674efde8c67612baf/ltp/algorithms/maximum_forward_matching.py#L75
     """
@@ -216,14 +251,11 @@ def cn_whole_word_mask(input_tokens, ref_ids, max_predictions=512, mlm_probabili
     return input_tokens
 
 
-
-def _whole_word_mask(input_tokens, max_predictions=512, mlm_probability=0.15):
+def _whole_word_mask(input_tokens, mlm_probability=0.15):
     """
     Get 0/1 labels for masked tokens with whole word mask proxy
-
     Args:
       input_tokens: List[str]
-
     Outputs:
       input_tokens: List[int]
     """
@@ -240,7 +272,7 @@ def _whole_word_mask(input_tokens, max_predictions=512, mlm_probability=0.15):
             cand_indexes.append([i])
 
     random.shuffle(cand_indexes)
-    num_to_predict = min(max_predictions, max(1, int(round(len(input_tokens) * mlm_probability))))
+    num_to_predict = max(1, int(len(input_tokens) * mlm_probability))
     masked_lms = []
     covered_indexes = set()
     for index_set in cand_indexes:
@@ -266,34 +298,78 @@ def _whole_word_mask(input_tokens, max_predictions=512, mlm_probability=0.15):
     return mask_labels
 
 
+class Tokenizer():
+    def __init__(self, ckpt="bert-base-chinese"):
+        self.tokenizer_cn = AutoTokenizer.from_pretrained(ckpt)
+    
+    def tokenize_fast(self, text):
+        """
+        Fast tokenization for pre-training; CLS & SEP are added lateron
+        """
+
+        tokens = self.tokenizer_cn.tokenize(text)
+
+        tokens, labels = random_word(tokens, self.tokenizer_cn)
+
+        tokens = self.tokenizer_cn.convert_tokens_to_ids(tokens)
+
+        assert len(tokens) == len(labels)
+
+        return tokens, labels
+
+
 
 class WWMTokenizer():
-    def __init__(self, col="text", seq_len=512):
+    def __init__(self, seq_len=512):
         """
         Constructs Huggingface CN tokenizer & other
-
             col: What column to tokenize if pretraining
         """
 
         self.tokenizer_cn = AutoTokenizer.from_pretrained("bert-base-chinese")
         self.tokenizer_ltp = LTP("small")
         self.max_seq_length = seq_len
-        self.col = col
 
-    def tokenize_pretraining(self, example):
+    def tokenize_fast(self, text):
         """
-        Takes in an example & returns pretraining data
+        Tokenizes text for pretraining fast
 
         Args:
-            Example: dict with entry "text"
-
+            text: A whole document, the more the better
         Returns:
-            Dict of TF Tensors
 
+        Problem: To split it in equal chunks we need to know how long it will be, however we only know how long after tokenization
+
+        This module modeule:
+        > Tokenize first
+        > Get tokens & labels
+        > Tokens to ids 
+        > POST RETURN: Split into chunks of seq_len - 2
+        > POST RETURN: Add sep_id, cls_id -100
         """
 
-        inputs = example[self.col]
-    
+        ref_ids = prepare_ref([text], self.tokenizer_ltp, self.tokenizer_cn)
+
+        tokens = self.tokenizer_cn.tokenize(text)
+
+        ref_ids = cn_whole_word_mask(tokens, ref_ids[0])
+        tokens, labels = random_word_wwm(tokens, ref_ids, self.tokenizer_cn)
+
+        input_ids = self.tokenizer_cn.convert_tokens_to_ids(tokens)
+
+        assert len(input_ids) == len(labels)
+
+        return input_ids, labels
+
+
+    def tokenize_pretraining(self, inputs):
+        """
+        Takes in an example & returns pretraining data
+        Args:
+            Example: dict with entry "text"
+        Returns:
+            Dict of TF Tensors
+        """
 
         ref_ids = prepare_ref([inputs], self.tokenizer_ltp, self.tokenizer_cn)
 
@@ -304,7 +380,7 @@ class WWMTokenizer():
             ref_ids = ref_ids[:(self.max_seq_length - 2)]
 
         ref_ids = cn_whole_word_mask(tokens, ref_ids[0])
-        tokens, labels = random_word(tokens, ref_ids, self.tokenizer_cn)
+        tokens, labels = random_word_wwm(tokens, ref_ids, self.tokenizer_cn)
 
         tokens = ['[CLS]'] + tokens + ['[SEP]']
         lm_label_ids = ([-100] + labels + [-100])
@@ -330,19 +406,3 @@ class WWMTokenizer():
                 'token_type_ids': tf.constant(token_type_ids), 'lm_label_ids': tf.constant(lm_label_ids)}
 
         return outputs
-
-    def to_tf_dataset(self, dataset): 
-        """
-        Turns dataset into a TF compatible dataset
-        """
-        columns = ['input_ids', 'attention_mask', 'token_type_ids', 'lm_label_ids']
-        dataset.set_format(type='tensorflow', columns=columns)
-
-        return_types = {'input_ids':tf.int32, 'attention_mask':tf.int32, 
-                      'token_type_ids':tf.int32, 'lm_label_ids':tf.int32}
-
-        return_shapes = {'input_ids': tf.TensorShape([None]), 'attention_mask': tf.TensorShape([None]), 
-                        'token_type_ids': tf.TensorShape([None]), 'lm_label_ids':tf.TensorShape([None])}
-
-        ds = tf.data.Dataset.from_generator(lambda : dataset, return_types, return_shapes)
-        return ds

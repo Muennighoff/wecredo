@@ -1,0 +1,5 @@
+tensorflow
+transformers
+lm_dataformat
+ftfy
+ltp
